@@ -19,7 +19,7 @@ export function buildServer() {
   // POST /jobs
   app.post("/jobs", { preHandler: authGuard }, async (req, reply) => {
     const body = schedulePayloadSchema.parse(req.body);
-    const { scheduleId, cron, timezone = "UTC", status = "enabled", payload } = body;
+    const { scheduleId, workspaceId, cron, timezone = "UTC", status = "enabled", payload } = body;
   
     const schedulerId = String(scheduleId);
   
@@ -37,7 +37,7 @@ export function buildServer() {
       { pattern: cron, tz: timezone },
       {
         name: `schedule:${scheduleId}`,
-        data: { scheduleId, payload },
+        data: { scheduleId, workspaceId, payload },
         opts: { removeOnComplete: true, removeOnFail: false },
       },
     );
@@ -48,8 +48,8 @@ export function buildServer() {
   // POST /execute-now
   app.post("/execute-now", { preHandler: authGuard }, async (req, reply) => {
     const body = executeNowSchema.parse(req.body);
-    const { scheduleId, payload } = body;
-    const res = await queue.add("manual-exec", { scheduleId, payload }, { removeOnComplete: true });
+    const { scheduleId, workspaceId, payload } = body;
+    const res = await queue.add("manual-exec", { scheduleId, workspaceId, payload }, { removeOnComplete: true });
     return reply.send({ ok: true, id: res.id });
   });
 

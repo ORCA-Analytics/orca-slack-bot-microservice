@@ -8,6 +8,7 @@ const schema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SLACK_BOT_TOKEN: z.string().optional(),
+  SLACK_DEFAULT_CHANNEL: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);

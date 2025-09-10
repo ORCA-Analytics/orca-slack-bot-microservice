@@ -11,13 +11,14 @@ export const schedulePayloadSchema = z.object({
   cron: z.string().optional(),
   timezone: z.string().optional(),
   status: z.enum(["enabled", "disabled"]).optional(),
-  payload: z.any().optional(), // we'll refine later
+  payload: z.any().optional(),
 });
 
 export type SchedulePayload = z.infer<typeof schedulePayloadSchema>;
 
 export const executeNowSchema = z.object({
   scheduleId: z.string(),
+  workspaceId: z.string(),
   payload: z.any().optional(),
 });
 export type ExecuteNowPayload = z.infer<typeof executeNowSchema>;
