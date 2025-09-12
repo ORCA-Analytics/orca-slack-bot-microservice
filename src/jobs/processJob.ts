@@ -3,8 +3,24 @@ import { z } from "zod";
 import { logger } from "../utils/logger.js";
 import { getScheduleById } from "../data/schedules.js";
 import { getBotTokenByWorkspaceId } from "../clients/slack-token.js";
-import { postParentAndReplies } from "../clients/slack.js";
-import { logQueued, markRunning, markCompleted, markFailed, bumpScheduleTimes } from "../lib/jobs.js";
+import {
+  postParentAndReplies,
+  ensureImageInBlocks,
+  isPublicImage,
+  downloadAsBuffer,
+  uploadBuffer,
+} from "../clients/slack.js";
+
+let renderHtmlToPngBuffer: ((html: string) => Promise<Buffer>) | undefined;
+
+import {
+  logQueued,
+  
+  markRunning,
+  markCompleted,
+  markFailed,
+  bumpScheduleTimes,
+} from "../lib/jobs.js";
 
 const blocksSchema = z.array(z.any());
 const jobDataSchema = z.object({
@@ -13,6 +29,12 @@ const jobDataSchema = z.object({
     parentText: z.string().optional(),
     parentBlocks: blocksSchema,
     replyBlocks: z.array(blocksSchema).optional(),
+    visualization: z.object({
+      imageUrl: z.string().url().optional(),
+      html: z.string().optional(),
+      fileName: z.string().optional(),
+      alt: z.string().optional(),
+    }).optional(),
   }),
 });
 
@@ -21,7 +43,6 @@ export async function processJob(job: Job) {
   const { scheduleId, payload } = parsed;
 
   const runAt = new Date(job.timestamp ?? Date.now());
-
   const { runId } = await logQueued(scheduleId, runAt);
 
   const startedAt = Date.now();
@@ -31,40 +52,89 @@ export async function processJob(job: Job) {
     const sched = await getScheduleById(scheduleId);
     const token = await getBotTokenByWorkspaceId(sched.workspace_id);
 
-    const res = await postParentAndReplies({
+    let parentBlocks = payload.parentBlocks;
+    let shouldUploadImageToThread = false;
+    let fallbackRemoteUrl: string | undefined;
+
+    if (payload.visualization?.imageUrl) {
+      const ok = await isPublicImage(payload.visualization.imageUrl);
+      if (ok) {
+        parentBlocks = ensureImageInBlocks(
+          parentBlocks,
+          payload.visualization.imageUrl,
+          payload.visualization.alt || payload.visualization.fileName
+        );
+      } else {
+        shouldUploadImageToThread = true;
+        fallbackRemoteUrl = payload.visualization.imageUrl;
+      }
+    }
+
+    const postArgs: any = {
       token,
-      ...(sched.channel_id && { channel: sched.channel_id }),
-      ...(process.env.SLACK_DEFAULT_CHANNEL && { defaultChannel: process.env.SLACK_DEFAULT_CHANNEL }),
-      parentBlocks: payload.parentBlocks,
-      ...(payload.replyBlocks && { replyBlocks: payload.replyBlocks }),
+      parentBlocks,
       parentText: payload.parentText ?? `Scheduled message for ${scheduleId}`,
-    });
+    };
+    if (sched.channel_id) {
+      postArgs.channel = sched.channel_id;
+    }
+    if (process.env.SLACK_DEFAULT_CHANNEL) {
+      postArgs.defaultChannel = process.env.SLACK_DEFAULT_CHANNEL;
+    }
+    if (payload.replyBlocks) {
+      postArgs.replyBlocks = payload.replyBlocks;
+    }
+    const res = await postParentAndReplies(postArgs);
+
+    if (shouldUploadImageToThread && fallbackRemoteUrl) {
+      try {
+        const { buffer, fileName } = await downloadAsBuffer(fallbackRemoteUrl);
+        await uploadBuffer({
+          token,
+          channel: res.channel,
+          thread_ts: res.ts,
+          buffer,
+          fileName: payload.visualization?.fileName || fileName,
+          title: payload.visualization?.alt || "Visualization",
+        });
+      } catch (e) {
+        logger.error({ err: e }, "8A fallback upload failed");
+      }
+    }
+
+    if (
+      !payload.visualization?.imageUrl &&
+      process.env.RENDER_MODE === "puppeteer" &&
+      payload.visualization?.html
+    ) {
+      if (!renderHtmlToPngBuffer) {
+        const { renderHtmlToPngBuffer: renderFn } = await import("../clients/renderer.js");
+        renderHtmlToPngBuffer = renderFn;
+      }
+      const png = await renderHtmlToPngBuffer(payload.visualization.html);
+      await uploadBuffer({
+        token,
+        channel: res.channel,
+        thread_ts: res.ts,
+        buffer: png,
+        fileName: payload.visualization.fileName || "visualization.png",
+        title: payload.visualization.alt || "Visualization",
+      });
+    }
 
     const durationMs = Date.now() - startedAt;
-    await markCompleted(runId, {
-      durationMs,
-      slackTs: res.ts,
-      slackChannel: res.channel,
-    });
-
+    await markCompleted(runId, { durationMs, slackTs: res.ts, slackChannel: res.channel });
     await bumpScheduleTimes(scheduleId, sched.cron_expr, sched.timezone, new Date());
 
-    logger.info(
-      { jobId: job.id, scheduleId, runId, durationMs, slackTs: res.ts, channel: res.channel },
-      "Job completed"
-    );
+    logger.info({ jobId: job.id, scheduleId, runId, durationMs, slackTs: res.ts, channel: res.channel }, "Job completed with Step 8");
     return res;
   } catch (err: any) {
     const durationMs = Date.now() - startedAt;
     await markFailed(runId, { durationMs, error: String(err?.data ?? err?.message ?? err) });
-
     try {
       const sched = await getScheduleById(scheduleId);
       await bumpScheduleTimes(scheduleId, sched.cron_expr, sched.timezone, new Date());
-    } catch (e) {
-      logger.warn({ e, scheduleId }, "bumpScheduleTimes on failure failed");
-    }
-
+    } catch {}
     throw err;
   }
 }
