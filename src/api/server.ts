@@ -1,13 +1,12 @@
 import Fastify from "fastify";
-import { Registry, collectDefaultMetrics } from "prom-client";
+import { registry } from "../metrics/metrics.js";
 import { authGuard } from "./auth.js";
 import { queue } from "@/queue/queue.js";
 import { schedulePayloadSchema, executeNowSchema } from "./schemas.js";
+import { collectDefaultMetrics } from "prom-client";
 
 export function buildServer() {
   const app = Fastify({ logger: false });
-  const registry = new Registry();
-  collectDefaultMetrics({ register: registry });
 
   app.get("/health", async () => ({ ok: true }));
   app.get("/metrics", async (_req, reply) => {

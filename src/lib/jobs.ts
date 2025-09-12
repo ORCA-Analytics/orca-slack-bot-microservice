@@ -1,12 +1,13 @@
 import { supabase } from "../clients/supabase.js";
 import { logger } from "../utils/logger.js";
-export async function logQueued(scheduleId: string) {
+import { jobsQueued, jobsRunning, jobsCompleted, jobsFailed } from "../metrics/metrics.js";
+export async function logQueued(scheduleId: string, runAt: Date) {
   const { data, error } = await supabase
     .from("slack_jobs")
     .insert({ 
       schedule_id: scheduleId,
-      status: "pending",
-      run_at: new Date().toISOString()
+      run_at: runAt.toISOString(),
+      status: "pending"
     })
     .select("id")
     .single();
@@ -14,6 +15,7 @@ export async function logQueued(scheduleId: string) {
     logger.error({ error }, "logQueued failed");
     throw error;
   }
+  jobsQueued.inc();
   return { runId: data.id as string };
 }
 
@@ -25,6 +27,7 @@ export async function markRunning(runId: string) {
   if (error) {
     throw error;
   }
+  jobsRunning.inc();
 }
 
 export async function markCompleted(runId: string, args: { durationMs: number; slackTs: string; slackChannel: string }) {
@@ -41,6 +44,7 @@ export async function markCompleted(runId: string, args: { durationMs: number; s
     })
     .eq("id", runId);
   if (error) throw error;
+  jobsCompleted.inc();
 }
 
 export async function markFailed(runId: string, args: { durationMs?: number; error: string }) {
@@ -55,11 +59,11 @@ export async function markFailed(runId: string, args: { durationMs?: number; err
     })
     .eq("id", runId);
   if (dbErr) throw dbErr;
+  jobsFailed.inc();
 }
 
-export function nextRunISO(cronExpr: string, timezone: string, from?: Date): string {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const cronParser = require("cron-parser");
+export async function nextRunISO(cronExpr: string, timezone: string, from?: Date): Promise<string> {
+  const cronParser = await import("cron-parser");
   const it = cronParser.CronExpressionParser.parse(cronExpr, { tz: timezone, currentDate: from ?? new Date() });
   return it.next().toDate().toISOString();
 }
@@ -67,7 +71,7 @@ export function nextRunISO(cronExpr: string, timezone: string, from?: Date): str
 export async function bumpScheduleTimes(scheduleId: string, cronExpr: string | null, timezone: string | null, asOf: Date) {
   const updates: Record<string, any> = { last_run_at: asOf.toISOString() };
   if (cronExpr && timezone) {
-    updates.next_run_at = nextRunISO(cronExpr, timezone, asOf);
+    updates.next_run_at = await nextRunISO(cronExpr, timezone, asOf);
   }
   const { error } = await supabase.from("slack_schedules").update(updates).eq("id", scheduleId);
   if (error) throw error;

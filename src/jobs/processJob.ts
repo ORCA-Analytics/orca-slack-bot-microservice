@@ -20,7 +20,9 @@ export async function processJob(job: Job) {
   const parsed = jobDataSchema.parse(job.data);
   const { scheduleId, payload } = parsed;
 
-  const { runId } = await logQueued(scheduleId);
+  const runAt = new Date(job.timestamp ?? Date.now());
+
+  const { runId } = await logQueued(scheduleId, runAt);
 
   const startedAt = Date.now();
   try {
