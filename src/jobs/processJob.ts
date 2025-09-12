@@ -56,7 +56,26 @@ export async function processJob(job: Job) {
     let shouldUploadImageToThread = false;
     let fallbackRemoteUrl: string | undefined;
 
-    if (payload.visualization?.imageUrl) {
+    if (payload.visualization?.html && process.env.RENDER_MODE === "puppeteer") {
+      if (!renderHtmlToPngBuffer) {
+        const { renderHtmlToPngBuffer: renderFn } = await import("../clients/renderer.js");
+        renderHtmlToPngBuffer = renderFn;
+      }
+      try {
+        const png = await renderHtmlToPngBuffer(payload.visualization.html);
+        await uploadBuffer({
+          token,
+          channel: sched.channel_id || process.env.SLACK_DEFAULT_CHANNEL || "",
+          buffer: png,
+          fileName: payload.visualization.fileName || "visualization.png",
+          title: payload.visualization.alt || "Visualization",
+        });
+      } catch (e) {
+        logger.error({ err: e }, "HTML render failed, falling back to imageUrl");
+      }
+    }
+
+    if (payload.visualization?.imageUrl && !payload.visualization?.html) {
       const ok = await isPublicImage(payload.visualization.imageUrl);
       if (ok) {
         parentBlocks = ensureImageInBlocks(
@@ -102,25 +121,6 @@ export async function processJob(job: Job) {
       }
     }
 
-    if (
-      !payload.visualization?.imageUrl &&
-      process.env.RENDER_MODE === "puppeteer" &&
-      payload.visualization?.html
-    ) {
-      if (!renderHtmlToPngBuffer) {
-        const { renderHtmlToPngBuffer: renderFn } = await import("../clients/renderer.js");
-        renderHtmlToPngBuffer = renderFn;
-      }
-      const png = await renderHtmlToPngBuffer(payload.visualization.html);
-      await uploadBuffer({
-        token,
-        channel: res.channel,
-        thread_ts: res.ts,
-        buffer: png,
-        fileName: payload.visualization.fileName || "visualization.png",
-        title: payload.visualization.alt || "Visualization",
-      });
-    }
 
     const durationMs = Date.now() - startedAt;
     await markCompleted(runId, { durationMs, slackTs: res.ts, slackChannel: res.channel });

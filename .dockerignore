@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+dist
+.git
+.gitignore
+sql
+tests
+coverage
+.env
+build-and-push.sh
+build-and-push.bat

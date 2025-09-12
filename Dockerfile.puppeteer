@@ -1,0 +1,38 @@
+# ---- Build stage ----
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
+
+# ---- Runtime stage with Puppeteer ----
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV RENDER_MODE=puppeteer
+
+# Install Puppeteer dependencies
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Copy only runtime deps
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+
+# Security: drop root
+RUN addgroup -S app && adduser -S node -G app
+USER node
+EXPOSE 8080
+CMD ["node", "dist/index.js"]
