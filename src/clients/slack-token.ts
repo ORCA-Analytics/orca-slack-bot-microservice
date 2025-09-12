@@ -4,7 +4,7 @@ type Cached = { token: string; expireAt?: number };
 const cache = new Map<string, Cached>();
 const TTL_MS = 60_000;
 
-export async function getWorkspaceSlackToken(workspaceId: string): Promise<string> {
+export async function getBotTokenByWorkspaceId(workspaceId: string): Promise<string> {
   const now = Date.now();
   const c = cache.get(workspaceId);
   if (c && (!c.expireAt || c.expireAt > now)) return c.token;
@@ -22,6 +22,5 @@ export async function getWorkspaceSlackToken(workspaceId: string): Promise<strin
 
   const expireAt = data.expires_at ? new Date(data.expires_at).getTime() : now + TTL_MS;
   cache.set(workspaceId, { token: data.access_token, expireAt: Math.min(expireAt, now + TTL_MS) });
-
   return data.access_token;
 }

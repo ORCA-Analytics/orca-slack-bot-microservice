@@ -1,24 +1,25 @@
 import { z } from "zod";
 
 export const schedulePayloadSchema = z.object({
-  scheduleId: z.string(),
-  workspaceId: z.string().optional(),
-  slack: z.object({
-    teamId: z.string().optional(),
-    channel: z.string(),
-    threadStrategy: z.enum(["parent_then_replies"]).optional(),
-  }).optional(),
+  scheduleId: z.string().uuid(),
   cron: z.string().optional(),
   timezone: z.string().optional(),
   status: z.enum(["enabled", "disabled"]).optional(),
-  payload: z.any().optional(),
+  payload: z.object({
+    parentText: z.string().optional(),
+    parentBlocks: z.array(z.any()),
+    replyBlocks: z.array(z.array(z.any())).optional(),
+  }),
 });
 
 export type SchedulePayload = z.infer<typeof schedulePayloadSchema>;
 
 export const executeNowSchema = z.object({
-  scheduleId: z.string(),
-  workspaceId: z.string(),
-  payload: z.any().optional(),
+  scheduleId: z.string().uuid(),
+  payload: z.object({
+    parentText: z.string().optional(),
+    parentBlocks: z.array(z.any()),
+    replyBlocks: z.array(z.array(z.any())).optional(),
+  }),
 });
 export type ExecuteNowPayload = z.infer<typeof executeNowSchema>;

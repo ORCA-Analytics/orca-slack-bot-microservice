@@ -10,46 +10,38 @@ export function buildServer() {
   collectDefaultMetrics({ register: registry });
 
   app.get("/health", async () => ({ ok: true }));
-
   app.get("/metrics", async (_req, reply) => {
     reply.header("Content-Type", registry.contentType);
     return registry.metrics();
   });
 
-  // POST /jobs
   app.post("/jobs", { preHandler: authGuard }, async (req, reply) => {
     const body = schedulePayloadSchema.parse(req.body);
-    const { scheduleId, workspaceId, cron, timezone = "UTC", status = "enabled", payload } = body;
-  
-    const schedulerId = String(scheduleId);
-  
+    const { scheduleId, cron, timezone = "UTC", status = "enabled", payload } = body;
+
     if (status === "disabled") {
-      const removed = await queue.removeJobScheduler(schedulerId);
-      return reply.send({ ok: true, removed });
+      const reps = await queue.getRepeatableJobs();
+      const toRemove = reps.filter((r) => r.id === scheduleId || r.key.includes(`${scheduleId}@`));
+      await Promise.all(toRemove.map((r) => queue.removeRepeatableByKey(r.key)));
+      return reply.send({ ok: true, removed: toRemove.length });
     }
-  
-    if (!cron) {
-      return reply.code(400).send({ error: "cron is required when enabling a job" });
-    }
-  
-    await queue.upsertJobScheduler(
-      schedulerId,
-      { pattern: cron, tz: timezone },
-      {
-        name: `schedule:${scheduleId}`,
-        data: { scheduleId, workspaceId, payload },
-        opts: { removeOnComplete: true, removeOnFail: false },
-      },
-    );
-  
+
+    if (!cron) return reply.code(400).send({ error: "cron is required when enabling a job" });
+
+    const jobName = `schedule:${scheduleId}`;
+    const key = `${scheduleId}@${cron}@${timezone}`;
+    await queue.add(jobName, { scheduleId, payload }, {
+      repeat: { pattern: cron, tz: timezone },
+      jobId: key,
+      removeOnComplete: true,
+      removeOnFail: false,
+    });
     return reply.send({ ok: true, job: { scheduleId, cron, timezone } });
   });
 
-  // POST /execute-now
   app.post("/execute-now", { preHandler: authGuard }, async (req, reply) => {
     const body = executeNowSchema.parse(req.body);
-    const { scheduleId, workspaceId, payload } = body;
-    const res = await queue.add("manual-exec", { scheduleId, workspaceId, payload }, { removeOnComplete: true });
+    const res = await queue.add("manual-exec", body, { removeOnComplete: true });
     return reply.send({ ok: true, id: res.id });
   });
 
