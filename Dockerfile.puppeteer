@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:20-alpine AS build
+FROM node:20-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -8,23 +8,21 @@ COPY src ./src
 RUN npm run build
 
 # ---- Runtime stage with Puppeteer ----
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV RENDER_MODE=puppeteer
 
 # Install Puppeteer dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
+    fonts-noto \
+    fonts-noto-color-emoji \
     ca-certificates \
-    ttf-freefont
+ && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1 \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Copy only runtime deps
 COPY package*.json ./
@@ -32,7 +30,7 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 
 # Security: drop root
-RUN addgroup -S app && adduser -S node -G app
+
 USER node
 EXPOSE 8080
 CMD ["node", "dist/index.js"]
