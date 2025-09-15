@@ -13,7 +13,7 @@ const WRAP = (inner: string) => `<!doctype html>
 </style></head>
 <body><div id="root">${inner}</div></body></html>`;
 
-const EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium";
+const EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/google-chrome-stable";
 const LAUNCH_ARGS = [
   "--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage",
   "--no-zygote","--single-process","--disable-gpu",
@@ -22,9 +22,9 @@ const LAUNCH_ARGS = [
 export async function renderHtmlToPngBuffer(html: string): Promise<Buffer> {
   const possiblePaths = [
     EXEC_PATH,
-    "/usr/bin/chromium-browser",
-    "/usr/bin/google-chrome",
     "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
     "/usr/bin/chromium"
   ];
 
