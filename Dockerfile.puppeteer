@@ -19,11 +19,8 @@ RUN apt-get update && apt-get install -y \
     fonts-noto \
     fonts-noto-color-emoji \
     ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-
-# Verify chromium installation and set correct path
-RUN which chromium && ls -la /usr/bin/chromium* || echo "Chromium not found in /usr/bin"
-RUN find /usr -name "*chromium*" -type f 2>/dev/null | head -10
+ && rm -rf /var/lib/apt/lists/* \
+ && which chromium
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1 \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium

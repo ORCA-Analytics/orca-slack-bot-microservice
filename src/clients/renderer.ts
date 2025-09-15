@@ -29,16 +29,18 @@ export async function renderHtmlToPngBuffer(html: string): Promise<Buffer> {
   ];
 
   let executablePath = EXEC_PATH;
+  const fs = await import("fs");
+  
+  console.log("Checking Chromium paths:");
   for (const path of possiblePaths) {
-    try {
-      const fs = await import("fs");
-      if (fs.existsSync(path)) {
-        executablePath = path;
-        break;
-      }
-    } catch {
+    const exists = fs.existsSync(path);
+    console.log(`  ${path}: ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+    if (exists && executablePath === EXEC_PATH) {
+      executablePath = path;
     }
   }
+  
+  console.log(`Using Chromium path: ${executablePath}`);
 
   const browser = await puppeteer.launch({
     headless: true,
