@@ -25,7 +25,12 @@ export async function renderHtmlToPngBuffer(html: string): Promise<Buffer> {
     "/usr/bin/google-chrome-stable",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium-browser",
-    "/usr/bin/chromium"
+    "/usr/bin/chromium",
+    // Windows paths
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    // macOS paths
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
   ];
 
   let executablePath = EXEC_PATH;
@@ -54,7 +59,7 @@ export async function renderHtmlToPngBuffer(html: string): Promise<Buffer> {
     headless: true,
     executablePath,
     args: LAUNCH_ARGS,
-    timeout: Number(process.env.PPTR_LAUNCH_TIMEOUT ?? 90000),
+    timeout: Number(process.env.PPTR_LAUNCH_TIMEOUT ?? 30000),
     defaultViewport: { width: 1280, height: 800, deviceScaleFactor: 2 },
   });
 

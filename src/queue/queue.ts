@@ -13,12 +13,19 @@ export function startWorker(processor: Processor) {
   const worker = new Worker("slack-jobs", processor, {
     connection,
     concurrency: 5,
+    stalledInterval: 30000, 
+    maxStalledCount: 1,
+    removeOnComplete: { count: 10 },
+    removeOnFail: { count: 5 },
   });
   worker.on("failed", (job, err) => {
     logger.error({ jobId: job?.id, err }, "job failed");
   });
   worker.on("completed", (job) => {
     logger.info({ jobId: job.id }, "job completed");
+  });
+  worker.on("stalled", (jobId) => {
+    logger.warn({ jobId }, "job stalled");
   });
   return worker;
 }

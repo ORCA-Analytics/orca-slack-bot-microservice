@@ -10,12 +10,13 @@ export type ScheduleRow = {
   status: "active" | "inactive" | string;
   last_run_at?: string | null;
   next_run_at?: string | null;
+  message_id?: string | null;
 };
 
 export async function getScheduleById(id: string): Promise<ScheduleRow> {
   const { data, error } = await supabase
     .from("slack_schedules")
-    .select("id, workspace_id, channel_id, channel_name, cron_expr, timezone, status, last_run_at, next_run_at")
+    .select("id, workspace_id, channel_id, channel_name, cron_expr, timezone, status, last_run_at, next_run_at, message_id")
     .eq("id", id)
     .maybeSingle();
 

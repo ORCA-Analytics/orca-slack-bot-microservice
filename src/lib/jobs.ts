@@ -30,8 +30,8 @@ export async function markRunning(runId: string) {
   jobsRunning.inc();
 }
 
-export async function markCompleted(runId: string, args: { durationMs: number; slackTs: string; slackChannel: string }) {
-  const { durationMs, slackTs, slackChannel } = args;
+export async function markCompleted(runId: string, args: { durationMs: number; slackTs: string; slackChannel: string; messageId?: string | null }) {
+  const { durationMs, slackTs, slackChannel, messageId } = args;
   const { error } = await supabase
     .from("slack_jobs")
     .update({
@@ -40,6 +40,7 @@ export async function markCompleted(runId: string, args: { durationMs: number; s
       duration_ms: durationMs,
       slack_ts: slackTs,
       slack_channel: slackChannel,
+      message_id: messageId,
       error_message: null,
     })
     .eq("id", runId);

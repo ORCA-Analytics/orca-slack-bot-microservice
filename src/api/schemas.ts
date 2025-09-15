@@ -15,9 +15,10 @@ export const schedulePayloadSchema = z.object({
   status: z.enum(["enabled", "disabled"]).optional(),
   payload: z.object({
     parentText: z.string().optional(),
-    parentBlocks: blocks,
+    parentBlocks: blocks.optional(),
     replyBlocks: z.array(blocks).optional(),
     visualization: viz,
+    messageId: z.string().optional(),
   }),
 });
 export type SchedulePayload = z.infer<typeof schedulePayloadSchema>;
@@ -26,9 +27,10 @@ export const executeNowSchema = z.object({
   scheduleId: z.string().uuid(),
   payload: z.object({
     parentText: z.string().optional(),
-    parentBlocks: blocks,
+    parentBlocks: blocks.optional(),
     replyBlocks: z.array(blocks).optional(),
     visualization: viz,
+    messageId: z.string().optional(),
   }),
 });
 export type ExecuteNowPayload = z.infer<typeof executeNowSchema>;
