@@ -20,9 +20,29 @@ const LAUNCH_ARGS = [
 ];
 
 export async function renderHtmlToPngBuffer(html: string): Promise<Buffer> {
+  const possiblePaths = [
+    EXEC_PATH,
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium"
+  ];
+
+  let executablePath = EXEC_PATH;
+  for (const path of possiblePaths) {
+    try {
+      const fs = await import("fs");
+      if (fs.existsSync(path)) {
+        executablePath = path;
+        break;
+      }
+    } catch {
+    }
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
-    executablePath: EXEC_PATH,
+    executablePath,
     args: LAUNCH_ARGS,
     timeout: Number(process.env.PPTR_LAUNCH_TIMEOUT ?? 90000),
     defaultViewport: { width: 1280, height: 800, deviceScaleFactor: 2 },

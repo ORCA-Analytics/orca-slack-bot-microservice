@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+# Verify chromium installation and set correct path
+RUN which chromium && ls -la /usr/bin/chromium* || echo "Chromium not found in /usr/bin"
+RUN find /usr -name "*chromium*" -type f 2>/dev/null | head -10
+
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1 \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
@@ -29,9 +33,9 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 
-# Give node user access to chromium
+# Set permissions for node user
 RUN chown -R node:node /app
-RUN chmod 755 /usr/bin/chromium
+RUN chmod +x /usr/bin/chromium
 
 # Security: drop root
 USER node
