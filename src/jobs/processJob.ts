@@ -55,6 +55,7 @@ export async function processJob(job: Job) {
     let parentBlocks = payload.parentBlocks;
     let shouldUploadImageToThread = false;
     let fallbackRemoteUrl: string | undefined;
+    let puppeteerBuffer: Buffer | undefined;
 
     if (payload.visualization?.html && process.env.RENDER_MODE === "puppeteer") {
       if (!renderHtmlToPngBuffer) {
@@ -62,14 +63,8 @@ export async function processJob(job: Job) {
         renderHtmlToPngBuffer = renderFn;
       }
       try {
-        const png = await renderHtmlToPngBuffer(payload.visualization.html);
-        await uploadBuffer({
-          token,
-          channel: sched.channel_id || process.env.SLACK_DEFAULT_CHANNEL || "",
-          buffer: png,
-          fileName: payload.visualization.fileName || "visualization.png",
-          title: payload.visualization.alt || "Visualization",
-        });
+        puppeteerBuffer = await renderHtmlToPngBuffer(payload.visualization.html);
+        shouldUploadImageToThread = true;
       } catch (e) {
         logger.error({ err: e }, "HTML render failed, falling back to imageUrl");
       }
@@ -105,19 +100,31 @@ export async function processJob(job: Job) {
     }
     const res = await postParentAndReplies(postArgs);
 
-    if (shouldUploadImageToThread && fallbackRemoteUrl) {
+    if (shouldUploadImageToThread) {
       try {
-        const { buffer, fileName } = await downloadAsBuffer(fallbackRemoteUrl);
-        await uploadBuffer({
-          token,
-          channel: res.channel,
-          thread_ts: res.ts,
-          buffer,
-          fileName: payload.visualization?.fileName || fileName,
-          title: payload.visualization?.alt || "Visualization",
-        });
+        if (puppeteerBuffer) {
+
+          await uploadBuffer({
+            token,
+            channel: res.channel,
+            thread_ts: res.ts,
+            buffer: puppeteerBuffer,
+            fileName: payload.visualization?.fileName || "visualization.png",
+            title: payload.visualization?.alt || "Visualization",
+          });
+        } else if (fallbackRemoteUrl) {
+          const { buffer, fileName } = await downloadAsBuffer(fallbackRemoteUrl);
+          await uploadBuffer({
+            token,
+            channel: res.channel,
+            thread_ts: res.ts,
+            buffer,
+            fileName: payload.visualization?.fileName || fileName,
+            title: payload.visualization?.alt || "Visualization",
+          });
+        }
       } catch (e) {
-        logger.error({ err: e }, "8A fallback upload failed");
+        logger.error({ err: e }, "Image upload to thread failed");
       }
     }
 
