@@ -40,6 +40,14 @@ export async function renderHtmlToPngBuffer(html: string): Promise<Buffer> {
     }
   }
   
+  try {
+    const files = fs.readdirSync('/usr/bin');
+    const chromeFiles = files.filter(f => f.toLowerCase().includes('chrome') || f.toLowerCase().includes('chromium'));
+    console.log(`Chrome/Chromium files in /usr/bin: ${chromeFiles.join(', ') || 'NONE'}`);
+  } catch (e) {
+    console.log(`Error reading /usr/bin: ${e}`);
+  }
+  
   console.log(`Using Chromium path: ${executablePath}`);
 
   const browser = await puppeteer.launch({
