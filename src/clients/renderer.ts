@@ -13,7 +13,7 @@ const WRAP = (inner: string) => `<!doctype html>
 </style></head>
 <body><div id="root">${inner}</div></body></html>`;
 
-const EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium-browser";
+const EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium";
 const LAUNCH_ARGS = [
   "--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage",
   "--no-zygote","--single-process","--disable-gpu",
