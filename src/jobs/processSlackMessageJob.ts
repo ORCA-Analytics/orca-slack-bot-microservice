@@ -93,7 +93,7 @@ export async function processSlackMessageJob(job: Job) {
     }
 
     const processor = new SlackMessageProcessor();
-    const result = await processor.processMessage(message, token.access_token);
+    const result = await processor.processMessage(message, token.access_token, payload);
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to process message');

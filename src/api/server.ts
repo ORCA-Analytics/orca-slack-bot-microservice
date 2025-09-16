@@ -19,9 +19,9 @@ export function buildServer() {
     const { scheduleId, cron, timezone = "UTC", status = "enabled", payload } = body;
 
     if (status === "disabled") {
-      const reps = await queue.getRepeatableJobs();
+      const reps = await slackMessageQueue.getRepeatableJobs();
       const toRemove = reps.filter((r) => r.id === scheduleId || r.key.includes(`${scheduleId}@`));
-      await Promise.all(toRemove.map((r) => queue.removeRepeatableByKey(r.key)));
+      await Promise.all(toRemove.map((r) => slackMessageQueue.removeRepeatableByKey(r.key)));
       return reply.send({ ok: true, removed: toRemove.length });
     }
 
@@ -29,7 +29,7 @@ export function buildServer() {
 
     const jobName = `schedule:${scheduleId}`;
     const key = `${scheduleId}@${cron}@${timezone}`;
-    await queue.add(jobName, { scheduleId, payload }, {
+    await slackMessageQueue.add(jobName, { scheduleId, payload }, {
       repeat: { pattern: cron, tz: timezone },
       jobId: key,
       removeOnComplete: true,

@@ -30,7 +30,7 @@ export class SlackMessageProcessor {
     this.placeholderProcessor = new PlaceholderProcessor();
   }
 
-  async processMessage(message: SlackMessage, accessToken: string): Promise<{
+  async processMessage(message: SlackMessage, accessToken: string, customPayload?: any): Promise<{
     success: boolean;
     slack_ts?: string;
     channel?: string;
@@ -85,7 +85,21 @@ export class SlackMessageProcessor {
         text: `Message from ${message.slack_templates.name}`,
       };
 
-      if (message.slack_templates.slack_blocks && message.slack_templates.slack_blocks.length > 0) {
+      if (customPayload && (customPayload.parentText || customPayload.parentBlocks)) {
+        messagePayload.text = customPayload.parentText || `Message from ${message.slack_templates.name}`;
+        
+        if (customPayload.parentBlocks && customPayload.parentBlocks.length > 0) {
+          const processedBlocks = await this.placeholderProcessor.replacePlaceholdersInBlocks(
+            customPayload.parentBlocks, 
+            queryResults,
+            message,
+            gcsFileInfo
+          );
+          
+          const validatedBlocks = this.placeholderProcessor.validateSlackBlocks(processedBlocks);
+          messagePayload.blocks = validatedBlocks;
+        }
+      } else if (message.slack_templates.slack_blocks && message.slack_templates.slack_blocks.length > 0) {
         const processedBlocks = await this.placeholderProcessor.replacePlaceholdersInBlocks(
           message.slack_templates.slack_blocks, 
           queryResults,
