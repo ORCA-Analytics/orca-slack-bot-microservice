@@ -8,9 +8,10 @@ const connection = new IORedis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
 });
 export const queue = new Queue("slack-jobs", { connection });
+export const slackMessageQueue = new Queue("slack-message-exec", { connection });
 
-export function startWorker(processor: Processor) {
-  const worker = new Worker("slack-jobs", processor, {
+export function startWorker(processor: Processor, queueName: string = "slack-jobs") {
+  const worker = new Worker(queueName, processor, {
     connection,
     concurrency: 5,
     stalledInterval: 30000, 

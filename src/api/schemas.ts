@@ -34,3 +34,23 @@ export const executeNowSchema = z.object({
   }),
 });
 export type ExecuteNowPayload = z.infer<typeof executeNowSchema>;
+
+export const slackMessageJobSchema = z.object({
+  scheduleId: z.string().uuid(),
+  payload: z.object({
+    messageId: z.string().optional(),
+  }),
+});
+export type SlackMessageJobPayload = z.infer<typeof slackMessageJobSchema>;
+
+export const processJobSchema = z.object({
+  scheduleId: z.string().uuid(),
+  payload: z.object({
+    parentText: z.string().optional(),
+    parentBlocks: blocks.optional(),
+    replyBlocks: z.array(blocks).optional(),
+    visualization: viz,
+    messageId: z.string().optional(),
+  }),
+});
+export type ProcessJobPayload = z.infer<typeof processJobSchema>;

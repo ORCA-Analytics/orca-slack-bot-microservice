@@ -1,7 +1,7 @@
 import { processJob } from "../src/jobs/processJob.js";
 import * as schedules from "../src/data/schedules.js";
 import * as token from "../src/clients/slack-token.js";
-import * as slack from "../src/clients/slack.js";
+import { SlackClient } from "../src/clients/slack.js";
 import * as jobs from "../src/lib/jobs.js";
 import { jobsQueued, jobsRunning, jobsCompleted } from "../src/metrics/metrics.js";
 
@@ -21,10 +21,20 @@ const mockSched = {
 };
 
 describe("processJob (idempotency + metrics)", () => {
+  let mockSlackClient: any;
+
   beforeEach(() => {
     (schedules.getScheduleById as any).mockResolvedValue(mockSched);
     (token.getBotTokenByWorkspaceId as any).mockResolvedValue("xoxb-TEST");
-    (slack.postParentAndReplies as any).mockResolvedValue({ channel: "C123", ts: "1726050000.000100" });
+    
+    mockSlackClient = {
+      sendMessage: jest.fn().mockResolvedValue({ 
+        ok: true, 
+        channel: "C123", 
+        ts: "1726050000.000100" 
+      })
+    };
+    (SlackClient as any).mockImplementation(() => mockSlackClient);
 
     (jobs.logQueued as any).mockResolvedValue({ runId: "run-1" });
     (jobs.markRunning as any).mockResolvedValue(undefined);
@@ -49,7 +59,7 @@ describe("processJob (idempotency + metrics)", () => {
 
     expect(jobs.logQueued).toHaveBeenCalledWith(mockSched.id, new Date("2025-09-12T10:00:00.000Z"));
     expect(jobs.markRunning).toHaveBeenCalledWith("run-1");
-    expect(slack.postParentAndReplies).toHaveBeenCalled();
+    expect(mockSlackClient.sendMessage).toHaveBeenCalled();
     expect(jobs.markCompleted).toHaveBeenCalled();
 
     const afterQ = (jobsQueued as any).hashMap?.[""]?.value || 0;
@@ -64,7 +74,7 @@ describe("processJob (idempotency + metrics)", () => {
   });
 
   it("marks failed and still bumps schedule times", async () => {
-    (slack.postParentAndReplies as any).mockRejectedValueOnce(new Error("boom"));
+    mockSlackClient.sendMessage.mockRejectedValueOnce(new Error("boom"));
     const job: any = { data: { scheduleId: mockSched.id, payload: { parentBlocks: [] } } };
     await expect(processJob(job)).rejects.toThrow();
     expect(jobs.markFailed).toHaveBeenCalledWith("run-1", expect.objectContaining({ error: expect.stringContaining("boom") }));

@@ -9,13 +9,16 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
-    '^.+\\.ts$': 'ts-jest',
-  },
-  globals: {
-    'ts-jest': {
+    '^.+\\.ts$': ['ts-jest', {
       tsconfig: {
         module: 'commonjs',
       },
+    }],
+  },
+  extensionsToTreatAsEsm: ['.ts'],
+  globals: {
+    'ts-jest': {
+      useESM: true,
     },
   },
 };

@@ -1,13 +1,14 @@
 # Slack Bot Microservice
 
-A robust microservice for scheduling and executing Slack messages with advanced visualization capabilities, including HTML-to-image rendering using Puppeteer.
+A comprehensive microservice for automating Slack message delivery with advanced data visualization capabilities. This service handles everything from BigQuery data execution to beautiful table rendering and automated Slack posting.
 
 ## Overview
 
-This microservice provides a comprehensive solution for:
-- **Scheduled Slack Messages**: Create recurring messages using cron expressions
+This microservice provides a complete solution for:
+- **Automated Data Reports**: Execute BigQuery SQL and generate visualizations
+- **Scheduled Messaging**: Create recurring messages using cron expressions
 - **Manual Execution**: Trigger messages immediately via API
-- **Rich Visualizations**: Render HTML content to images and post as Slack threads
+- **Rich Visualizations**: Render HTML tables to images with conditional formatting
 - **Queue Management**: Reliable job processing with BullMQ and Redis
 - **Monitoring**: Built-in Prometheus metrics and health checks
 
@@ -18,9 +19,10 @@ This microservice provides a comprehensive solution for:
 │   Fastify API   │───▶│   BullMQ Queue  │───▶│  Job Processor  │
 │                 │    │                 │    │                 │
 │ • /health       │    │ • Redis Backend │    │ • Slack Client  │
-│ • /metrics      │    │ • Job Scheduling│    │ • Puppeteer     │
-│ • /jobs         │    │ • Retry Logic   │    │ • Supabase      │
-│ • /execute-now  │    │                 │    │                 │
+│ • /metrics      │    │ • Job Scheduling│    │ • BigQuery      │
+│ • /jobs         │    │ • Retry Logic   │    │ • Puppeteer     │
+│ • /execute-slack│    │                 │    │ • GCS Upload    │
+│ • /send-message │    │                 │    │ • Supabase      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -29,6 +31,7 @@ This microservice provides a comprehensive solution for:
 - **Node.js** 20+
 - **Redis** (for job queue)
 - **Supabase** (for data persistence)
+- **Google Cloud Platform** (BigQuery and Cloud Storage)
 - **Google Cloud Run** (for deployment)
 - **Slack Bot Token** (with appropriate scopes)
 
@@ -93,16 +96,67 @@ apikey: {{SUPABASE_SERVICE_ROLE_KEY}}
 ```
 ## Deployment
 
-### Google Cloud Run
+### Google Cloud Run Updates
 
+Since the initial deployment is already configured, here's how to update the service with new changes:
+
+#### Quick Update Commands
+
+**1. Pull latest changes:**
 ```bash
-# Set up variables
-export TAG=v1.0.0
-export IMAGE_NAME="us-central1-docker.pkg.dev/your-project/ms/slack-render:$TAG"
+git pull origin main
+```
 
-# Build and deploy
-gcloud builds submit . --config cloudbuild.puppeteer.yaml --substitutions=_IMAGE_NAME="$IMAGE_NAME"
-gcloud run deploy slack-render --image "$IMAGE_NAME" --region us-central1
+**2. Set new version tag:**
+```bash
+export TAG="v1.0.1"  # Update version number
+export IMAGE_RENDER="us-central1-docker.pkg.dev/orcaanalytics/ms/slack-render:$TAG"
+```
+
+**3. Build and deploy:**
+```bash
+gcloud builds submit . --config cloudbuild.puppeteer.yaml --substitutions=_IMAGE_NAME="$IMAGE_RENDER"
+gcloud run deploy slack-render --image "$IMAGE_RENDER" --region us-central1
+```
+
+#### Monitor Live Logs
+
+**Follow live logs during deployment:**
+```bash
+gcloud beta logging tail 'resource.type="cloud_run_revision" AND resource.labels.service_name="slack-render"' --project=orcaanalytics
+```
+
+**View service status:**
+```bash
+gcloud run services describe slack-render --region us-central1 --format="value(status.url)"
+```
+
+#### Cloud Build Configuration
+
+The `cloudbuild.puppeteer.yaml` file:
+```yaml
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '${_IMAGE_NAME}', '-f', 'Dockerfile.puppeteer', '.']
+images:
+- '${_IMAGE_NAME}'
+```
+
+#### Troubleshooting
+
+**Common issues:**
+- **Memory issues:** Increase memory allocation to 2Gi or 4Gi
+- **Timeout errors:** Increase timeout to 900s
+- **Puppeteer errors:** Ensure using `Dockerfile.puppeteer` with Chrome installed
+- **Permission errors:** Check IAM roles for Cloud Run and Secret Manager
+
+**Rollback if needed:**
+```bash
+# List revisions
+gcloud run revisions list --service=slack-render --region=us-central1
+
+# Rollback to specific revision
+gcloud run services update-traffic slack-render --to-revisions=REVISION_NAME=100 --region=us-central1
 ```
 
 ### Docker
