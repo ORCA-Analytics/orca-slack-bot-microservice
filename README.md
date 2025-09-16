@@ -75,6 +75,16 @@ SUPABASE_SERVICE_ROLE_KEY=supabasekey
 # Authorization: Bearer {SUPABASE_SERVICE_ROLE_KEY}
 # apikey: {SUPABASE_SERVICE_ROLE_KEY}
 
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT_ID=your-project-id
+GOOGLE_CLOUD_CREDENTIALS={"type":"service_account",...}
+# OR use file path:
+GOOGLE_APPLICATION_CREDENTIALS=./path/to/service-account.json
+
+# Google Cloud Storage
+GCS_BUCKET_NAME=your-bucket-name
+GOOGLE_CLOUD_STORAGE_CREDENTIALS={"type":"service_account",...}
+
 # Puppeteer Configuration
 RENDER_MODE=puppeteer
 
@@ -325,33 +335,27 @@ curl -X POST "http://localhost:8080/jobs" \
 
 ---
 
-### 4. Execute Now
+### 4. Execute Slack Message
 
-**POST** `/execute-now`
+**POST** `/execute-slack-message`
 
-Execute a job immediately without scheduling.
+Execute a Slack message job immediately without scheduling. This endpoint processes messages from the database, executes BigQuery SQL, generates visualizations, and sends to Slack.
 
 **Request Body:**
 ```json
 {
   "scheduleId": "{REAL-UUID-SCHEDULE}",
   "payload": {
-    "parentText": "Manual Execution Test",
-    "parentBlocks": [
-      {
-        "type": "section",
-        "text": {
-          "type": "mrkdwn",
-          "text": "*Manual Execution*"
-        }
-      }
-    ],
-    "visualization": {
-      "html": "<h2>Test Metrics</h2><table><thead><tr><th>Date</th><th>Spend</th><th>ROAS</th></tr></thead><tbody><tr><td>2025-09-12</td><td class='num'>24404</td><td class='num'>3.49</td></tr></tbody></table>",
-      "fileName": "table.png",
-      "alt": "Test Metrics"
-    }
+    "messageId": "optional-message-id-override"
   }
+}
+```
+
+**Simple Message Execution:**
+```json
+{
+  "scheduleId": "{REAL-UUID-SCHEDULE}",
+  "payload": {}
 }
 ```
 
@@ -365,249 +369,226 @@ Execute a job immediately without scheduling.
 
 **cURL:**
 ```bash
-curl -X POST "http://localhost:8080/execute-now" \
+curl -X POST "http://localhost:8080/execute-slack-message" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your-jwt-token>" \
   -d '{
     "scheduleId": "{REAL-UUID-SCHEDULE}",
-    "payload": {
-      "parentText": "Manual Execution Test",
-      "parentBlocks": [
-        {
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": "*Manual Execution*"
-          },
-        },
-      ],
-      "visualization": {
-        "html": "<h2>Test Metrics</h2><table><thead><tr><th>Date</th><th>Spend</th><th>ROAS</th></tr></thead><tbody><tr><td>2025-09-12</td><td class='num'>24404</td><td class='num'>3.49</td></tr></tbody></table>",
-        "fileName": "table.png",
-        "alt": "Test Metrics"
-      },
-      "messageId": "custom-message-id-123"
-    }
+    "payload": {}
   }'
 ```
 
 **Note:** The `messageId` in the payload will override the schedule's default `message_id` for this specific execution.
 
-**Example - Empty Payload (uses template):**
-```json
-{
-  "scheduleId": "ade2a400-68bb-4a5e-9b62-a171b7b87587",
-  "payload": {}
-}
-```
-This will automatically fetch and use the content from the `message_id` in the `slack_messages` table.
-
-**Example - Custom Payload (overrides template):**
-```json
-{
-  "scheduleId": "ade2a400-68bb-4a5e-9b62-a171b7b87587",
-  "payload": {
-    "parentText": "Custom Message",
-    "parentBlocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "Hello!"}}]
-  }
-}
-```
-This will use the custom content instead of the template.
-
-**Example - Template + HTML Visualization (Recommended):**
-```json
-{
-  "scheduleId": "ade2a400-68bb-4a5e-9b62-a171b7b87587",
-  "payload": {
-    "visualization": {
-      "html": "<h2>MTD Metrics</h2><table><thead><tr><th>Date</th><th>Spend</th><th>ROAS</th></tr></thead><tbody><tr><td>2025-09-12</td><td class='num'>123456</td><td class='num'>3.50</td></tr></tbody></table>",
-      "fileName": "table.png",
-      "alt": "MTD Metrics"
-    }
-  }
-}
-```
-**Result:** 
-- **Main Message:** "Test KPI's" (extracted from template header)
-- **Thread Image:** Your HTML table rendered as PNG
-
-**Example - Complete Override:**
-```json
-{
-  "scheduleId": "ade2a400-68bb-4a5e-9b62-a171b7b87587",
-  "payload": {
-    "parentText": "Custom Daily Report",
-    "parentBlocks": [
-      {"type": "section", "text": {"type": "mrkdwn", "text": "*Custom content here*"}}
-    ],
-    "visualization": {
-      "html": "<h2>Custom Chart</h2><div>Your custom visualization</div>",
-      "fileName": "custom-chart.png"
-    }
-  }
-}
-```
-**Result:** Completely ignores template, uses your custom text + renders your HTML as thread image.
+This endpoint automatically:
+1. Fetches the message template from Supabase
+2. Executes BigQuery SQL if present
+3. Generates table visualizations with conditional formatting
+4. Uploads images to Google Cloud Storage
+5. Sends formatted messages to Slack
+6. Handles parent and child message threads
 
 ---
 
-## Template Flexibility Guide
+### 5. Send Message Simple
 
-### **Scenario 1: Template + Your Data (Most Common)**
+**POST** `/send-message-simple`
+
+Send a message directly without using the job queue. Useful for quick testing and debugging.
+
+**Request Body:**
 ```json
 {
-  "scheduleId": "your-schedule-id",
-  "payload": {
-    "visualization": {
-      "html": "<h2>Your Data</h2><table>...</table>"
-    }
+  "messageId": "message-uuid-from-database"
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "success": true,
+  "slack_ts": "1234567890.123456",
+  "channel": "C1234567890",
+  "childResults": []
+}
+```
+
+**cURL:**
+```bash
+curl -X POST "http://localhost:8080/send-message-simple" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -d '{
+    "messageId": "6d5f7b30-4366-4041-b57f-97c5be1694e2"
+  }'
+```
+
+---
+
+### 6. Test SQL
+
+**POST** `/test-sql`
+
+Test BigQuery SQL execution without sending to Slack.
+
+**Request Body:**
+```json
+{
+  "sql": "SELECT * FROM your_table LIMIT 10",
+  "companyId": "company-123"
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "result": {
+    "data": [
+      {"column1": "value1", "column2": "value2"}
+    ],
+    "rows": []
   }
 }
 ```
-✅ **Uses:** Template header text + Your HTML as image
 
-### **Scenario 2: Complete Custom Message**
+---
+
+### 7. Debug Template
+
+**GET** `/debug-template/:messageId`
+
+Get detailed information about a message template for debugging.
+
+**Response:**
 ```json
 {
-  "scheduleId": "your-schedule-id", 
-  "payload": {
-    "parentText": "My Custom Title",
-    "parentBlocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "Custom content"}}],
-    "visualization": {"html": "<h2>Custom Chart</h2>"}
+  "ok": true,
+  "message": {
+    "id": "message-uuid",
+    "templateId": "template-uuid",
+    "templateName": "Daily Report",
+    "hasSqlText": true,
+    "sqlTextLength": 1500,
+    "hasSlackBlocks": true,
+    "slackBlocksCount": 3,
+    "hasVizConfig": true,
+    "companyId": "company-123"
   }
 }
 ```
-✅ **Uses:** Your custom text + Your HTML as image (ignores template)
-
-### **Scenario 3: Template Only**
-```json
-{
-  "scheduleId": "your-schedule-id",
-  "payload": {}
-}
-```
-✅ **Uses:** Template as-is (removes problematic image blocks)
-
-### **Key Benefits:**
-- 🎯 **Override Control:** Payload always takes priority over template
-- 📊 **Data Integration:** Seamlessly combine template styling with your data
-- 🔄 **Fallback Safety:** Empty payloads gracefully use templates
-- 🖼️ **Visual Flexibility:** HTML tables/charts render as high-quality images
 
 ---
 
 ## Data Models
 
-### Schedule Payload Schema
+### Message Processing Flow
 
-```typescript
+The microservice processes messages through the following steps:
+
+1. **Template Retrieval**: Fetches message template from Supabase with SQL, Slack blocks, and visualization config
+2. **SQL Execution**: Runs BigQuery queries with company-specific data
+3. **Data Processing**: Formats query results and applies conditional formatting
+4. **Visualization Generation**: Creates HTML tables with conditional colors and renders to PNG
+5. **Image Upload**: Uploads generated images to Google Cloud Storage
+6. **Placeholder Replacement**: Replaces `{{visualization_url}}` and other variables in Slack blocks
+7. **Message Delivery**: Sends formatted messages to Slack with proper threading
+
+### Database Schema
+
+**slack_messages table:**
+- `id`: Unique message identifier
+- `template_id`: Reference to slack_templates
+- `slack_channel_id`: Target Slack channel
+- `workspace_id`: Slack workspace reference
+- `is_parent`: Whether this is a parent message
+- `parent_message_id`: Reference to parent (for child messages)
+- `position`: Order for child messages
+
+**slack_templates table:**
+- `id`: Template identifier
+- `name`: Template name
+- `sql_text`: BigQuery SQL query
+- `slack_blocks`: Slack Block Kit JSON
+- `viz_config_json`: Visualization configuration
+
+**slack_schedules table:**
+- `id`: Schedule identifier
+- `message_id`: Reference to slack_messages
+- `cron_expr`: Cron expression for scheduling
+- `timezone`: Timezone for execution
+- `status`: enabled/disabled
+
+### Visualization Configuration
+
+The `viz_config_json` field controls table formatting:
+
+```json
 {
-  scheduleId: string;        // UUID
-  cron?: string;            // Cron expression (required for enabled jobs)
-  timezone?: string;        // Default: "UTC"
-  status?: "enabled" | "disabled";
-  payload: {
-    parentText?: string;     // Main message text
-    parentBlocks?: Block[];  // Slack Block Kit blocks (optional)
-    replyBlocks?: Block[][]; // Optional reply blocks
-    visualization?: {
-      imageUrl?: string;     // Direct image URL
-      html?: string;         // HTML to render as image
-      fileName?: string;     // Image filename
-      alt?: string;          // Alt text for image
-    };
-    messageId?: string;      // Override schedule's message ID
-  };
+  "tableConfig": {
+    "column_name": {
+      "alignment": "Left|Center|Right",
+      "format": "Text|Number|Currency|Percent",
+      "decimalPlaces": 2,
+      "currency": "$ (USD)",
+      "conditionalFormatting": "Yes|No",
+      "colorScale": "Low green, high red|Low red, high green|Low green, high white|Low white, high green"
+    }
+  }
 }
 ```
 
-**Note:** Each schedule has a unique `message_id` that can be used to track and identify specific messages across the system. 
+### Placeholder Variables
 
-**Smart Content Loading & Template System:**
-
-The system provides maximum flexibility for message templates:
-
-**Payload Override Priority:**
-- **Custom Payload:** If you provide `parentText` or `parentBlocks` in the payload, it completely overrides the template
-- **Template Fallback:** If the payload is empty, it automatically uses the template from the `message_id` in `slack_messages` table
-
-**Template Text Extraction:**
-- **Header Blocks:** Automatically extracts text from `header` blocks (e.g., "Test KPI's")
-- **Section Blocks:** Falls back to `section` blocks if no header is found
-- **Smart Fallback:** Uses template message ID if no text blocks are found
-
-**Visualization Templates:**
-- **HTML Rendering:** Pass `visualization.html` in payload to render tables/charts as images
-- **Template Integration:** Uses template's header text + renders your HTML as thread image
-- **Placeholder Support:** Templates with `{{visualization_url}}` placeholders work seamlessly with HTML payloads
-
-**Flexible Combinations:**
-- **Template + HTML:** Use template text + your custom HTML visualization
-- **Custom Everything:** Override template completely with your own content
-- **Template Only:** Use template as-is when payload is empty
-
-### Execute Now Schema
-
-```typescript
-{
-  scheduleId: string;
-  payload: {
-    parentText?: string;
-    parentBlocks?: Block[];  // Optional - will use template if empty
-    replyBlocks?: Block[][];
-    visualization?: {
-      imageUrl?: string;
-      html?: string;
-      fileName?: string;
-      alt?: string;
-    };
-    messageId?: string;      // Override schedule's message ID
-  };
-}
-```
+Supported placeholders in Slack blocks:
+- `{{template_name}}`: Template name
+- `{{workspace_id}}`: Slack workspace ID
+- `{{company_id}}`: Company identifier
+- `{{channel_id}}`: Slack channel ID
+- `{{visualization_url}}`: Generated image URL
+- Any column from BigQuery results: `{{column_name}}`
 
 ---
 
 ## Visualization Features
 
-### HTML Rendering
+### Automated Table Generation
 
-The service can render HTML content to PNG images using Puppeteer:
+The service automatically generates beautiful HTML tables from BigQuery data with:
 
-```html
-<h2>MTD Metrics</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Spend</th>
-      <th>ROAS</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>2025-09-12</td>
-      <td class="num">24404</td>
-      <td class="num">3.49</td>
-    </tr>
-  </tbody>
-</table>
-```
+- **Conditional Formatting**: Color-coded cells based on data values
+- **Professional Styling**: Clean, modern table design
+- **Responsive Layout**: Optimized for Slack display
+- **Data Formatting**: Numbers, currency, percentages with proper alignment
 
-**CSS Classes Available:**
-- `.num`: Right-aligned numbers with tabular numerals
-- Automatic styling for tables, headers, and content
+### Conditional Formatting
 
-### Image Handling
+Tables support four color scales:
+- **Low green, high red**: Green for low values, red for high values
+- **Low red, high green**: Red for low values, green for high values  
+- **Low green, high white**: Green fades to white
+- **Low white, high green**: White fades to green
 
-1. **HTML Content**: Rendered to PNG using Puppeteer
-2. **Direct URLs**: Validated and embedded as Slack blocks
-3. **Thread Upload**: Images posted as replies to main message
-4. **Fallback**: Graceful degradation if rendering fails
+### Image Processing Pipeline
+
+1. **Data Query**: Execute BigQuery SQL with company context
+2. **Table Generation**: Create HTML with conditional formatting
+3. **Image Rendering**: Convert HTML to PNG using Puppeteer
+4. **Cloud Upload**: Store image in Google Cloud Storage
+5. **URL Generation**: Create signed URLs for Slack access
+6. **Message Assembly**: Replace placeholders and send to Slack
+
+### Thread Management
+
+- **Parent Messages**: Main message with optional visualization
+- **Child Messages**: Thread replies with additional data
+- **Automatic Ordering**: Child messages processed in position order
+- **Error Handling**: Failed child messages don't affect parent
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Cron Expressions
 
@@ -654,28 +635,29 @@ The test suite covers:
 
 ### Manual Testing
 
-Use the `/execute-now` endpoint to test your configurations:
+Use the `/send-message-simple` endpoint to test your configurations:
 
 ```bash
-# Test basic message
-curl -X POST "http://localhost:8080/execute-now" \
+# Test message execution
+curl -X POST "http://localhost:8080/send-message-simple" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{
-    "scheduleId": "test-uuid",
-    "payload": {
-      "parentText": "Test Message",
-      "parentBlocks": [
-        {
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": "Hello World!"
-          }
-        }
-      ]
-    }
+    "messageId": "6d5f7b30-4366-4041-b57f-97c5be1694e2"
   }'
+
+# Test SQL execution
+curl -X POST "http://localhost:8080/test-sql" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "sql": "SELECT * FROM your_table LIMIT 5",
+    "companyId": "company-123"
+  }'
+
+# Debug template
+curl -X GET "http://localhost:8080/debug-template/6d5f7b30-4366-4041-b57f-97c5be1694e2" \
+  -H "Authorization: Bearer <token>"
 ```
 
 ---
@@ -760,16 +742,19 @@ Structured logging with Pino:
 
 ### Optimization Features
 
-- **Queue Processing**: Asynchronous job processing
-- **Image Caching**: Efficient image handling
+- **Queue Processing**: Asynchronous job processing with BullMQ
+- **Image Caching**: Efficient image handling and GCS storage
 - **Connection Pooling**: Redis and Supabase connections
 - **Memory Management**: Proper cleanup of Puppeteer instances
+- **Type Safety**: Full TypeScript implementation with centralized types
+- **Error Handling**: Graceful degradation and comprehensive error reporting
 
 ### Scaling
 
 - **Horizontal Scaling**: Multiple worker instances
 - **Queue Distribution**: Redis-based job distribution
 - **Resource Limits**: Configurable memory and CPU limits
+- **Database Optimization**: Efficient Supabase queries with proper indexing
 
 ---
 
@@ -779,16 +764,25 @@ Structured logging with Pino:
 
 ```
 src/
-├── api/           # Fastify API routes
-├── clients/       # External service clients
+├── api/           # Fastify API routes and schemas
+├── clients/       # External service clients (BigQuery, GCS, Slack)
 ├── config/        # Configuration management
-├── data/          # Data access layer
 ├── jobs/          # Job processing logic
-├── lib/           # Shared utilities
+├── lib/           # Shared utilities and processors
 ├── metrics/       # Prometheus metrics
 ├── queue/         # BullMQ configuration
+├── types/         # Centralized TypeScript interfaces
 └── utils/         # Helper functions
 ```
+
+### Key Components
+
+- **SlackMessageProcessor**: Core orchestrator for message processing
+- **TableGenerator**: Creates HTML tables with conditional formatting
+- **PlaceholderProcessor**: Handles variable replacement in Slack blocks
+- **BigQueryClient**: Executes SQL queries with proper authentication
+- **GCSClient**: Manages image uploads to Google Cloud Storage
+- **SlackClient**: Handles Slack API communication
 
 ---
 
@@ -799,6 +793,21 @@ For issues and questions:
 - Verify your Slack bot token and scopes
 - Ensure Redis is accessible
 - Check Supabase connection
+- Verify Google Cloud credentials and permissions
+- Test individual components using the debug endpoints
+
+### Common Issues
+
+**BigQuery Authentication**: Ensure `GOOGLE_CLOUD_CREDENTIALS` or `GOOGLE_APPLICATION_CREDENTIALS` is properly configured
+
+**GCS Upload Failures**: Check bucket permissions and `GCS_BUCKET_NAME` configuration
+
+**Slack API Errors**: Verify bot token has `chat:write` and `files:write` scopes
+
+**Template Processing**: Use `/debug-template/:messageId` to inspect template configuration
+
+**SQL Execution**: Test queries with `/test-sql` endpoint before scheduling
 
 ---
+
 
