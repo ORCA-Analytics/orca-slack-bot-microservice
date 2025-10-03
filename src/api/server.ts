@@ -27,6 +27,12 @@ export function buildServer() {
 
     if (!cron) return reply.code(400).send({ error: "cron is required when enabling a job" });
 
+    const existing = await slackMessageQueue.getRepeatableJobs();
+    const stale = existing.filter((r) => r.id === scheduleId || r.key.includes(`${scheduleId}@`));
+    if (stale.length) {
+      await Promise.all(stale.map((r) => slackMessageQueue.removeRepeatableByKey(r.key)));
+    }
+
     const jobName = `schedule:${scheduleId}`;
     const key = `${scheduleId}@${cron}@${timezone}`;
     await slackMessageQueue.add(jobName, { scheduleId, payload }, {
@@ -35,7 +41,7 @@ export function buildServer() {
       removeOnComplete: true,
       removeOnFail: false,
     });
-    return reply.send({ ok: true, job: { scheduleId, cron, timezone } });
+    return reply.send({ ok: true, job: { scheduleId, cron, timezone }, removedOld: stale.length });
   });
   
   app.post("/execute-slack-message", { preHandler: authGuard }, async (req, reply) => {

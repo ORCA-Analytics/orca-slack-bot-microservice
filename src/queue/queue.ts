@@ -1,7 +1,7 @@
 import * as IORedisNS from "ioredis";
 import { Queue, Worker, type JobsOptions, type Processor } from "bullmq";
-import { env } from "../config/env.js";
-import { logger } from "../utils/logger.js";
+import { env } from "@/config/env.js";
+import { logger } from "@/utils/logger.js";
 
 const IORedis: any = (IORedisNS as any).default ?? (IORedisNS as any);
 const connection = new IORedis(env.REDIS_URL, {
