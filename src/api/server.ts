@@ -27,11 +27,9 @@ export function buildServer() {
 
     if (!cron) return reply.code(400).send({ error: "cron is required when enabling a job" });
 
-    const existing = await slackMessageQueue.getRepeatableJobs();
-    const stale = existing.filter((r) => r.id === scheduleId || r.key.includes(`${scheduleId}@`));
-    if (stale.length) {
-      await Promise.all(stale.map((r) => slackMessageQueue.removeRepeatableByKey(r.key)));
-    }
+    const existingReps = await slackMessageQueue.getRepeatableJobs();
+    const toRemove = existingReps.filter((r) => r.id === scheduleId || r.key.includes(`${scheduleId}@`));
+    await Promise.all(toRemove.map((r) => slackMessageQueue.removeRepeatableByKey(r.key)));
 
     const jobName = `schedule:${scheduleId}`;
     const key = `${scheduleId}@${cron}@${timezone}`;
@@ -41,7 +39,7 @@ export function buildServer() {
       removeOnComplete: true,
       removeOnFail: false,
     });
-    return reply.send({ ok: true, job: { scheduleId, cron, timezone }, removedOld: stale.length });
+    return reply.send({ ok: true, job: { scheduleId, cron, timezone }, removedOld: toRemove.length });
   });
   
   app.post("/execute-slack-message", { preHandler: authGuard }, async (req, reply) => {
@@ -131,6 +129,25 @@ export function buildServer() {
       const bigQueryClient = new BigQueryClient();
       const result = await bigQueryClient.executeQuery(sql, companyId);
       return reply.send({ ok: true, result });
+    } catch (error) {
+      return reply.code(500).send({ ok: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  app.get("/debug-jobs", { preHandler: authGuard }, async (req, reply) => {
+    try {
+      const repeatableJobs = await slackMessageQueue.getRepeatableJobs();
+      return reply.send({ 
+        ok: true, 
+        totalJobs: repeatableJobs.length,
+        jobs: repeatableJobs.map(job => ({
+          id: job.id,
+          key: job.key,
+          name: job.name,
+          pattern: job.pattern,
+          nextRun: job.next
+        }))
+      });
     } catch (error) {
       return reply.code(500).send({ ok: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }

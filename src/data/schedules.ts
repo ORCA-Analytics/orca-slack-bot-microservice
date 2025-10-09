@@ -25,3 +25,14 @@ export async function getScheduleById(id: string): Promise<ScheduleRow> {
   if (data.status !== "active") throw new Error(`Schedule ${id} is not active`);
   return data as ScheduleRow;
 }
+
+export async function getActiveSchedules(): Promise<ScheduleRow[]> {
+  const { data, error } = await supabase
+    .from("slack_schedules")
+    .select("id, workspace_id, channel_id, channel_name, cron_expr, timezone, status, last_run_at, next_run_at, message_id")
+    .eq("status", "active")
+    .not("cron_expr", "is", null);
+
+  if (error) throw error;
+  return (data || []) as ScheduleRow[];
+}
