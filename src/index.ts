@@ -10,6 +10,13 @@ import { getActiveSchedules } from "@/data/schedules.js";
 async function recoverActiveJobs() {
   try {
     logger.info("Starting job recovery...");
+    logger.info("Cleaning existing jobs to remove duplicates...");
+    const existingJobs = await slackMessageQueue.getRepeatableJobs();
+    logger.info({ count: existingJobs.length }, "Found existing jobs to clean");
+    
+    await Promise.all(existingJobs.map(job => slackMessageQueue.removeRepeatableByKey(job.key)));
+    logger.info("All existing jobs cleaned");
+    
     const activeSchedules = await getActiveSchedules();
     logger.info({ count: activeSchedules.length }, "Found active schedules");
     
