@@ -91,24 +91,20 @@ export class GCSClient {
           contentType: 'image/png',
           cacheControl: 'public, max-age=86400'
         },
-        public: false
+        public: true
       });
 
       console.log('File uploaded to GCS successfully');
 
       const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${uniqueFilename}`;
       
-      const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
-      });
-      
-      console.log('Generated URLs:', {
+      console.log('Generated public URL:', {
         publicUrl: publicUrl,
-        signedUrl: signedUrl
+        bucketName: this.bucketName,
+        filename: uniqueFilename
       });
       
-      const workingUrl = signedUrl;
+      const workingUrl = publicUrl;
       
       console.log('GCS upload successful:', {
         filename: uniqueFilename,
