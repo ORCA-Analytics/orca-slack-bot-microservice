@@ -90,8 +90,7 @@ export class GCSClient {
         metadata: {
           contentType: 'image/png',
           cacheControl: 'public, max-age=86400'
-        },
-        public: true
+        }
       });
 
       console.log('File uploaded to GCS successfully');
