@@ -108,7 +108,21 @@ export class SlackMessageProcessor {
         );
         
         const validatedBlocks = this.placeholderProcessor.validateSlackBlocks(processedBlocks);
-        messagePayload.blocks = validatedBlocks;
+        
+        if (validatedBlocks.length === 0) {
+          console.warn('All blocks were removed during validation, falling back to text message');
+          messagePayload.text = `${message.slack_templates.name}`;
+          
+          if (queryResults && queryResults.data && queryResults.data.length > 0) {
+            messagePayload.text += `\n\nQuery returned ${queryResults.data.length} row(s).`;
+          } else if (message.slack_templates.sql_text) {
+            messagePayload.text += `\n\nQuery executed but returned no data.`;
+          } else {
+            messagePayload.text += `\n\nNo data available to display.`;
+          }
+        } else {
+          messagePayload.blocks = validatedBlocks;
+        }
       } else {
         messagePayload.text = `${message.slack_templates.name}`;
         
@@ -213,7 +227,21 @@ export class SlackMessageProcessor {
         );
         
         const validatedBlocks = this.placeholderProcessor.validateSlackBlocks(processedBlocks);
-        childMessagePayload.blocks = validatedBlocks;
+        
+        if (validatedBlocks.length === 0) {
+          console.warn('All child blocks were removed during validation, falling back to text message');
+          childMessagePayload.text = `${childMessage.slack_templates.name}`;
+          
+          if (childQueryResults && childQueryResults.data && childQueryResults.data.length > 0) {
+            childMessagePayload.text += `\n\nQuery returned ${childQueryResults.data.length} row(s).`;
+          } else if (childMessage.slack_templates.sql_text) {
+            childMessagePayload.text += `\n\nQuery executed but returned no data.`;
+          } else {
+            childMessagePayload.text += `\n\nNo data available to display.`;
+          }
+        } else {
+          childMessagePayload.blocks = validatedBlocks;
+        }
       } else {
         childMessagePayload.text = `${childMessage.slack_templates.name}`;
         

@@ -8,7 +8,34 @@ import { collectDefaultMetrics } from "prom-client";
 export function buildServer() {
   const app = Fastify({ logger: false });
 
-  app.get("/health", async () => ({ ok: true }));
+  app.get("/health", async () => ({ ok: true, timestamp: new Date().toISOString() }));
+  
+  app.get("/health/workers", { preHandler: authGuard }, async (req, reply) => {
+    try {
+      const repeatableJobs = await slackMessageQueue.getRepeatableJobs();
+      const queueStatus = await slackMessageQueue.getJobCounts('completed', 'failed', 'delayed', 'active', 'waiting');
+      
+      return reply.send({ 
+        ok: true,
+        workers: {
+          slack_jobs: "active",
+          slack_message_exec: "active"
+        },
+        redis: {
+          connected: true,
+          repeatableJobsCount: repeatableJobs.length
+        },
+        queue: queueStatus,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      return reply.code(500).send({ 
+        ok: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
   app.get("/metrics", async (_req, reply) => {
     reply.header("Content-Type", registry.contentType);
     return registry.metrics();

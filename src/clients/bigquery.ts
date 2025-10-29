@@ -58,7 +58,52 @@ export class BigQueryClient {
         configuration: { query: jobOptions } 
       });
       
-      const [rows] = await job.getQueryResults();
+      const [jobMetadata] = await job.getMetadata();
+      console.log('Job created, waiting for completion...', {
+        jobId: jobMetadata.id,
+        status: jobMetadata.status?.state
+      });
+      
+      let jobComplete = false;
+      let attempts = 0;
+      const maxAttempts = 60;
+      
+      while (!jobComplete && attempts < maxAttempts) {
+        const [metadata] = await job.getMetadata();
+        const state = metadata.status?.state;
+        
+        if (state === 'DONE') {
+          if (metadata.status?.errors && metadata.status.errors.length > 0) {
+            throw new Error(`BigQuery job failed: ${JSON.stringify(metadata.status.errors)}`);
+          }
+          jobComplete = true;
+        } else if (state === 'PENDING' || state === 'RUNNING') {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          attempts++;
+        } else {
+          throw new Error(`BigQuery job in unexpected state: ${state}`);
+        }
+      }
+      
+      if (!jobComplete) {
+        throw new Error('BigQuery job timed out after 60 seconds');
+      }
+      
+      console.log('Job completed, fetching results...');
+      const [rows] = await job.getQueryResults({
+        maxResults: 10000,
+        autoPaginate: false
+      });
+      
+      const [finalMetadata] = await job.getMetadata();
+      
+      console.log('Raw query results:', {
+        rowsLength: rows?.length || 0,
+        hasRows: !!rows,
+        totalRowsProcessed: finalMetadata?.statistics?.query?.totalRowsProcessed || 'unknown',
+        totalBytesProcessed: finalMetadata?.statistics?.query?.totalBytesProcessed || 'unknown',
+        jobState: finalMetadata?.status?.state
+      });
       
       if (rows && rows.length > 0) {
         const formattedRows = rows.map((row: any) => {
@@ -102,6 +147,13 @@ export class BigQueryClient {
 
         return result;
       }
+
+      console.warn('Query returned no rows', {
+        rowsWasNull: rows === null,
+        rowsWasUndefined: rows === undefined,
+        rowsLength: rows?.length || 0,
+        totalRowsProcessed: finalMetadata?.statistics?.query?.totalRowsProcessed || 'unknown'
+      });
 
       return null;
     } catch (error) {

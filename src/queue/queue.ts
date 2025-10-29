@@ -19,15 +19,25 @@ export function startWorker(processor: Processor, queueName: string = "slack-job
     removeOnComplete: { count: 10 },
     removeOnFail: { count: 5 },
   });
+  
+  logger.info({ queueName }, "Worker started and ready to process jobs");
+  
   worker.on("failed", (job, err) => {
-    logger.error({ jobId: job?.id, err }, "job failed");
+    logger.error({ jobId: job?.id, queueName, err }, "job failed");
   });
   worker.on("completed", (job) => {
-    logger.info({ jobId: job.id }, "job completed");
+    logger.info({ jobId: job.id, queueName }, "job completed");
   });
   worker.on("stalled", (jobId) => {
-    logger.warn({ jobId }, "job stalled");
+    logger.warn({ jobId, queueName }, "job stalled");
   });
+  worker.on("error", (err) => {
+    logger.error({ queueName, err }, "worker error");
+  });
+  worker.on("active", (job) => {
+    logger.info({ jobId: job.id, queueName }, "job started processing");
+  });
+  
   return worker;
 }
 
