@@ -47,7 +47,7 @@ export class BigQueryClient {
         query: sqlText,
         location: 'US',
         dryRun: false,
-        maximumBytesBilled: '100000000',
+        maximumBytesBilled: '1000000000',
         jobTimeoutMs: 30000,
         useLegacySql: false,
         useQueryCache: true,
